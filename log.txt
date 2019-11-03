@@ -1,0 +1,3 @@
+#Log-Datei mit Unix-Zeitstempel
+EE EE EE EE,	Test,	1572774090
+FF FF FF FF,	Test1,	1572774091
