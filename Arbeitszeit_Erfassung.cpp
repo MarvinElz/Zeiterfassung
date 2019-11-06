@@ -21,9 +21,62 @@
 using namespace std;
 using namespace libconfig;
 
+typedef enum{
+	Present,
+	Absent
+}Presence;
+
+class User{	
+	
+public:
+	User(string name_, string UID_){
+		name = name_;
+		UID = UID_;
+		presence = Absent;
+	}
+
+public:
+	void arrived(){
+		unix_arrived = std::time(0);
+		presence = Present;
+	}
+	void left(){
+		unix_left = std::time(0);
+		presence = Absent;
+	}
+
+	std::time_t getArrivalTime(){
+		return unix_arrived;
+	}
+
+	std::time_t time_spend(){
+		if( presence == Present ) return 0;
+		return unix_left - unix_arrived;
+	}
+
+	string getName(){
+		return name;
+	}
+
+	Presence getPresence(){
+		return presence;
+	}
+
+	private:
+		string name;
+		string UID;
+		std::time_t unix_arrived;
+		std::time_t unix_left;
+		Presence presence; 		
+};
+
+
 string log_filename = "log.txt";
 
-map<string, string> users_map;
+// Zuordnung zwischen UID und Benutzername
+map<string, User*> users_map;
+
+
 
 void connect_callback(struct mosquitto *mosq, void *obj, int result)
 {
@@ -35,22 +88,39 @@ void message_callback(struct mosquitto *mosq, void *obj, const struct mosquitto_
 {
 	bool match = 0;
 	cout << "Topic: " << message->topic << endl;
-	
-	//printf("got message '%.*s' for topic '%s'\n", message->payloadlen, (char*) message->payload, message->topic);
 
 	mosquitto_topic_matches_sub("/RFID/UID", message->topic, &match);
 	if (match) {
 		cout << (char*) message->payload << endl;
-		string user_name = users_map[(char*) message->payload];		
+
+		if ( users_map.find( (char*) message->payload ) == users_map.end() ){
+			User* new_user = new User("Unknown", (char*) message->payload);
+			cout << "Neuen unbekannten Benutzer " << "Unknown" << " , " << (char*) message->payload << endl;
+			users_map.insert(pair<string, User*>((char*) message->payload, new_user));	
+		}
 		
-		std::fstream fs;
-		fs.open (log_filename, std::fstream::out | std::fstream::app);
-		if (fs.is_open()){
-			fs << (char*) message->payload << "," << "\t" << user_name << "," << "\t" << std::time(0) << endl;
+		User* user = users_map[(char*) message->payload];	
+		if( user->getPresence() == Absent ){
+			// Benutzer meldet sich an
+			user->arrived();
+			cout << "Benutzer " << user->getName() << " hat sich angemeldet." << endl;
+			// TODO: mosquitto_pub(...); 
+		}	else {
+			user->left();
+			// TODO: mosquitto_pub(...);
+			cout << "Benutzer " << user->getName() << " hat sich nach " << user->time_spend()  << " Sekunden abgemeldet." << endl;
+			std::fstream fs;
+			fs.open (log_filename, std::fstream::out | std::fstream::app);
+			if (fs.is_open()){
+				fs << (char*) message->payload << "," << "\t" 
+					 << user->getName()          << "," << "\t" 
+					 << user->getArrivalTime()   << "," << "\t" 
+					 << user->time_spend()
+					 << endl;
 			fs.close();
+			}		
 		}
 	}
-
 }
 
 int main(){
@@ -78,6 +148,7 @@ int main(){
 	const Setting &users = root["users"];
     const int users_count = users.getLength();  
     
+		cout << "Folgende Benutzer sind bekannt:" << endl;
     for(int i = 0; i < users_count; ++i)
 	{
 		const Setting &user = users[i];
@@ -85,8 +156,12 @@ int main(){
 		string user_name;	
 		if(!user.lookupValue("UID", UID) ) continue;
 		if(!user.lookupValue("name", user_name)) continue;
-		users_map.insert(pair<string, string>(UID, user_name));
+		User* new_user = new User(user_name, UID);
+		cout << "   " << user_name << " , " << UID << endl;
+		users_map.insert(pair<string, User*>(UID, new_user));		
 	}  
+
+	
 	
 	mosquitto_lib_init();
 	
