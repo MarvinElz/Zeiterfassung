@@ -22,8 +22,9 @@ using namespace std;
 using namespace libconfig;
 
 typedef enum{
-	Present,
-	Absent
+	PRESENCE_NONE,
+	PRESENCE_PRESENT,
+	PRESENCE_ABSENT
 }Presence;
 
 class User{	
@@ -32,17 +33,17 @@ public:
 	User(string name_, string UID_){
 		name = name_;
 		UID = UID_;
-		presence = Absent;
+		presence = PRESENCE_ABSENT;
 	}
 
 public:
 	void arrived(){
 		unix_arrived = std::time(0);
-		presence = Present;
+		presence = PRESENCE_PRESENT;
 	}
 	void left(){
 		unix_left = std::time(0);
-		presence = Absent;
+		presence = PRESENCE_ABSENT;
 	}
 
 	std::time_t getArrivalTime(){
@@ -50,7 +51,7 @@ public:
 	}
 
 	std::time_t time_spend(){
-		if( presence == Present ) return 0;
+		if( presence == PRESENCE_PRESENT ) return 0;
 		return unix_left - unix_arrived;
 	}
 
@@ -100,15 +101,21 @@ void message_callback(struct mosquitto *mosq, void *obj, const struct mosquitto_
 		}
 		
 		User* user = users_map[(char*) message->payload];	
-		if( user->getPresence() == Absent ){
+		if( user->getPresence() == PRESENCE_ABSENT ){
 			// Benutzer meldet sich an
 			user->arrived();
 			cout << "Benutzer " << user->getName() << " hat sich angemeldet." << endl;
-			// TODO: mosquitto_pub(...); 
+			
+			char presence = PRESENCE_PRESENT;
+			mosquitto_publish(mosq, 0, "/RFID/User_Presence", 1,&presence, 2, false);
+			
 		}	else {
 			user->left();
-			// TODO: mosquitto_pub(...);
 			cout << "Benutzer " << user->getName() << " hat sich nach " << user->time_spend()  << " Sekunden abgemeldet." << endl;
+			
+			char presence = PRESENCE_ABSENT;
+			mosquitto_publish(mosq, 0, "/RFID/User_Presence", 1 ,&presence, 2, false);
+			
 			std::fstream fs;
 			fs.open (log_filename, std::fstream::out | std::fstream::app);
 			if (fs.is_open()){
