@@ -72,7 +72,7 @@ public:
 };
 
 
-string log_filename = "log.txt";
+string log_filename = "/home/pi/Zeiterfassung/log.txt";
 
 // Zuordnung zwischen UID und Benutzername
 map<string, User*> users_map;
@@ -139,7 +139,7 @@ int main(){
 	Config cfg;
 	
 	try{
-		cfg.readFile( "UID.config" );
+		cfg.readFile( "/home/pi/Zeiterfassung/UID.config" );
 	}
 	catch( const FileIOException &fioex ){	
 		cout << "Fehler beim Lesen des Config-Files \"UID.config\"" << endl;

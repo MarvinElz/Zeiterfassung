@@ -1,0 +1,16 @@
+[Unit]
+Description=Zeiterfassung
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+PermissionsStartOnly=true
+
+Restart=always
+RestartSec=5
+
+ExecStart=/home/pi/Zeiterfassung/Arbeitszeiterfassung
+
+[Install]
+WantedBy=multi-user.target
